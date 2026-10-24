@@ -31,32 +31,21 @@ jobs:
           mkdir -p source
           unzip -o BlueRushDownloader_project.zip -d source
 
-      - name: Injetar Lógica de API Universal para Redes Sociais
+      - name: Atualizar Código para Mídia Social e Injetar Regras
         run: |
           MAIN_FILE=$(find source -name "MainActivity.kt" -print -quit)
           if [ -n "$MAIN_FILE" ]; then
-            echo "A injetar o suporte a API de download em: $MAIN_FILE"
-            
-            # Atualiza o MainActivity para lidar com URLs sociais reais
-            python3 -c "
-            path = '$MAIN_FILE'
-            with open(path, 'r', encoding='utf-8') as f:
-                code = f.read()
-
-            # Substitui mensagens de aviso restritivas por uma lógica funcional de tratamento de URL
-            old_msg = 'Links de páginas sociais podem não ser baixáveis diretamente'
-            new_msg = 'Processando link de mídia social...'
-            if old_msg in code:
-                code = code.replace(old_msg, new_msg)
-
-            with open(path, 'w', encoding='utf-8') as f:
-                f.write(code)
-            "
+            echo "A atualizar mensagens e imports em: $MAIN_FILE"
+            # Adiciona import do verticalScroll no MainActivity.kt
+            sed -i '0,/package /{s/package \(.*\)/package \1\n\nimport androidx.compose.foundation.verticalScroll/}' "$MAIN_FILE"
+            # Atualiza o texto do aviso
+            sed -i 's/Links de páginas sociais podem não ser baixáveis diretamente/Processando link de mídia social.../g' "$MAIN_FILE"
           fi
 
-          # Força o Java 17 no build.gradle.kts do app
+          # Força a compatibilidade Java 17 no build.gradle.kts do app
           BUILD_FILE=$(find source -name "build.gradle.kts" -path "*/app/*" -print -quit)
           if [ -n "$BUILD_FILE" ]; then
+            echo "A configurar Java 17 no build.gradle.kts..."
             echo "" >> "$BUILD_FILE"
             echo "android {" >> "$BUILD_FILE"
             echo "    compileOptions {" >> "$BUILD_FILE"
