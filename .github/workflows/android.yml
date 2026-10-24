@@ -21,29 +21,25 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Configurar Android SDK manualmente
+      - name: Configurar Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Instalar Build Tools e Platform 35
         run: |
-          export ANDROID_HOME=/usr/local/lib/android/sdk
-          export ANDROID_SDK_ROOT="$ANDROID_HOME"
-          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
-          echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> "$GITHUB_ENV"
-          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" --licenses || true
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" "platforms;android-35" "build-tools;35.0.0"
+          sdkmanager --install "platforms;android-35" "build-tools;35.0.0"
 
       - name: Extrair projeto ZIP
         run: |
           mkdir source
           unzip BlueRushDownloader_project.zip -d source
 
-      - name: Configurar Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: "8.9"
-
-      - name: Compilar APK
+      - name: Dar permissão ao Gradle Wrapper
         working-directory: source
-        run: gradle assembleDebug
+        run: chmod +x gradlew
+
+      - name: Compilar APK (Debug)
+        working-directory: source
+        run: ./gradlew assembleDebug
 
       - name: Disponibilizar APK para download
         if: success()
@@ -52,3 +48,4 @@ jobs:
           name: BlueRushDownloader-APK
           path: source/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+          
