@@ -30,20 +30,27 @@ jobs:
         run: |
           mkdir -p source
           unzip -o BlueRushDownloader_project.zip -d source
+          # Lista o conteúdo para sabermos onde o gradlew foi parar se falhar de novo
+          ls -R source
 
-      - name: Dar permissão ao Gradle Wrapper
-        working-directory: source
-        run: chmod +x gradlew
+      - name: Encontrar e dar permissão ao Gradle Wrapper
+        run: |
+          # Procura o gradlew em qualquer subpasta dentro de source e dá permissão
+          find source -name "gradlew" -exec chmod +x {} \;
 
       - name: Compilar APK (Debug)
-        working-directory: source
-        run: ./gradlew assembleDebug
+        run: |
+          # Encontra a pasta onde está o gradlew e roda a compilação de lá
+          GRADLEW_PATH=$(find source -name "gradlew" -print -quit)
+          DIR_PATH=$(dirname "$GRADLEW_PATH")
+          cd "$DIR_PATH"
+          ./gradlew assembleDebug
 
       - name: Disponibilizar APK para download
         if: success()
         uses: actions/upload-artifact@v4
         with:
           name: BlueRushDownloader-APK
-          path: source/app/build/outputs/apk/debug/app-debug.apk
+          path: "**/build/outputs/apk/debug/app-debug.apk"
           if-no-files-found: error
           
