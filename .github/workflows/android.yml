@@ -26,44 +26,271 @@ jobs:
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
           $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-35" "build-tools;35.0.0"
 
-      - name: Extrair projeto ZIP
+      - name: Criar Projeto Android Funcional do Zero
         run: |
-          mkdir -p source
-          unzip -o BlueRushDownloader_project.zip -d source
+          mkdir -p BlueRush/app/src/main/java/com/bluerush/downloader
+          cd BlueRush
 
-      - name: Injetar Suporte Extrator sem Python
-        run: |
-          MAIN_FILE=$(find source -name "MainActivity.kt" -print -quit)
-          if [ -n "$MAIN_FILE" ]; then
-            echo "A ajustar MainActivity.kt com sed..."
-            
-            # 1. Injeta os imports essenciais no topo do arquivo
-            sed -i '0,/package /{s/package \(.*\)/package \1\n\nimport androidx.compose.foundation.verticalScroll\nimport android.content.Intent\nimport android.net.Uri/}' "$MAIN_FILE"
-            
-            # 2. Atualiza os textos de aviso antigos
-            sed -i 's/A conversão de páginas sociais não está habilitada nesta versão inicial./Processando download via API pública.../g' "$MAIN_FILE"
-            sed -i 's/Link salvo no histórico; esta URL não parece ser um arquivo direto./Redirecionando para extração de vídeo.../g' "$MAIN_FILE"
-            sed -i 's/Links de páginas sociais podem não ser baixáveis diretamente./Suporte a mídias sociais ativado./g' "$MAIN_FILE"
-            sed -i 's/Esta versão baixa URLs diretas de arquivos de mídia./Preparando arquivo para a galeria.../g' "$MAIN_FILE"
-          fi
+          # 1. settings.gradle.kts
+          echo 'pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }' > settings.gradle.kts
+          echo 'dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }' >> settings.gradle.kts
+          echo 'rootProject.name = "BlueRushDownloader"' >> settings.gradle.kts
+          echo 'include(":app")' >> settings.gradle.kts
 
-          # 3. Configura a compatibilidade com Java 17 no app
-          BUILD_FILE=$(find source -name "build.gradle.kts" -path "*/app/*" -print -quit)
-          if [ -n "$BUILD_FILE" ]; then
-            echo "A configurar Java 17 no build.gradle.kts..."
-            echo "" >> "$BUILD_FILE"
-            echo "android {" >> "$BUILD_FILE"
-            echo "    compileOptions {" >> "$BUILD_FILE"
-            echo "        sourceCompatibility = JavaVersion.VERSION_17" >> "$BUILD_FILE"
-            echo "        targetCompatibility = JavaVersion.VERSION_17" >> "$BUILD_FILE"
-            echo "    }" >> "$BUILD_FILE"
-            echo "}" >> "$BUILD_FILE"
-            echo "kotlin {" >> "$BUILD_FILE"
-            echo "    compilerOptions {" >> "$BUILD_FILE"
-            echo "        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17" >> "$BUILD_FILE"
-            echo "    }" >> "$BUILD_FILE"
-            echo "}" >> "$BUILD_FILE"
-          fi
+          # 2. build.gradle.kts (Raiz)
+          echo 'plugins { id("com.android.application") version "8.2.0" apply false; id("org.jetbrains.kotlin.android") version "1.9.22" apply false }' > build.gradle.kts
+
+          # 3. app/build.gradle.kts
+          mkdir -p app
+          cat << 'EOF' > app/build.gradle.kts
+          plugins {
+              id("com.android.application")
+              id("org.jetbrains.kotlin.android")
+          }
+          android {
+              namespace = "com.bluerush.downloader"
+              compileSdk = 35
+              defaultConfig {
+                  applicationId = "com.bluerush.downloader"
+                  minSdk = 24
+                  targetSdk = 35
+                  versionCode = 1
+                  versionName = "1.0"
+              }
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }
+              kotlinOptions { jvmTarget = "17" }
+              buildFeatures { compose = true }
+              composeOptions { kotlinCompilerExtensionVersion = "1.5.8" }
+          }
+          dependencies {
+              implementation("androidx.core:core-ktx:1.12.0")
+              implementation("androidx.activity:activity-compose:1.8.2")
+              implementation(platform("androidx.compose:compose-bom:2024.02.00"))
+              implementation("androidx.compose.ui:ui")
+              implementation("androidx.compose.ui:ui-graphics")
+              implementation("androidx.compose.material3:material3")
+          }
+          EOF
+
+          # 4. AndroidManifest.xml
+          mkdir -p app/src/main
+          cat << 'EOF' > app/src/main/AndroidManifest.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.bluerush.downloader">
+              <uses-permission android:name="android.permission.INTERNET" />
+              <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+              <application android:allowBackup="true" android:label="Blue Rush" android:theme="@style/Theme.Material3.DayNight.NoActionBar">
+                  <activity android:name=".MainActivity" android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+          # 5. MainActivity.kt com API de Extração Real
+          mkdir -p app/src/main/java/com/bluerush/downloader
+          cat << 'EOF' > app/src/main/java/com/bluerush/downloader/MainActivity.kt
+          package com.bluerush.downloader
+
+          import android.app.DownloadManager
+          import android.content.Context
+          import android.net.Uri
+          import android.os.Bundle
+          import android.os.Environment
+          import android.widget.Toast
+          import androidx.activity.ComponentActivity
+          import androidx.activity.compose.setContent
+          import androidx.compose.foundation.background
+          import androidx.compose.foundation.layout.*
+          import androidx.compose.foundation.rememberScrollState
+          import androidx.compose.foundation.shape.RoundedCornerShape
+          import androidx.compose.foundation.verticalScroll
+          import androidx.compose.material3.*
+          import androidx.compose.runtime.*
+          import androidx.compose.ui.Alignment
+          import androidx.compose.ui.Modifier
+          import androidx.compose.ui.graphics.Color
+          import androidx.compose.ui.text.font.FontWeight
+          import androidx.compose.ui.unit.dp
+          import androidx.compose.ui.unit.sp
+          import kotlinx.coroutines.Dispatchers
+          import kotlinx.coroutines.launch
+          import kotlinx.coroutines.withContext
+          import org.json.JSONObject
+          import java.net.HttpURLConnection
+          import java.net.URL
+
+          class MainActivity : ComponentActivity() {
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+                  setContent {
+                      BlueRushApp(onDownloadClick = { url, format, isAudio ->
+                          processAndDownloadMedia(this, url, format, isAudio)
+                      })
+                  }
+              }
+          }
+
+          @OptIn(ExperimentalMaterial3Api::class)
+          @Composable
+          fun BlueRushApp(onDownloadClick: (String, String, Boolean) -> Unit) {
+              var urlText by remember { mutableStateOf("") }
+              var selectedFormat by remember { mutableStateOf("MP4") }
+              var showDialog by remember { mutableStateOf(false) }
+
+              val darkBackground = Color(0xFF09111E)
+              val cardBackground = Color(0xFF132238)
+              val primaryRed = Color(0xFFE62117)
+              val primaryBlue = Color(0xFF0066FF)
+
+              Column(
+                  modifier = Modifier
+                      .fillMaxSize()
+                      .background(darkBackground)
+                      .padding(16.dp)
+                      .verticalScroll(rememberScrollState())
+              ) {
+                  Row(
+                      modifier = Modifier.fillMaxWidth(),
+                      horizontalArrangement = Arrangement.SpaceBetween,
+                      verticalAlignment = Alignment.CenterVertically
+                  ) {
+                      Column {
+                          Text(text = "BLUE RUSH", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                          Text(text = "MEDIA DOWNLOADER", color = Color.Gray, fontSize = 12.sp)
+                      }
+                      Surface(color = primaryRed, shape = RoundedCornerShape(20.dp)) {
+                          Text(text = "SEM ADS", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
+                      }
+                  }
+
+                  Spacer(modifier = Modifier.height(32.dp))
+                  Text(text = "Seu conteúdo.\nSeu formato. Do seu jeito.", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                  Spacer(modifier = Modifier.height(24.dp))
+
+                  Card(
+                      colors = CardDefaults.cardColors(containerColor = cardBackground),
+                      shape = RoundedCornerShape(16.dp),
+                      modifier = Modifier.fillMaxWidth()
+                  ) {
+                      Column(modifier = Modifier.padding(16.dp)) {
+                          Text(text = "LINK DO VÍDEO OU ÁUDIO", color = Color.Gray, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                          Spacer(modifier = Modifier.height(8.dp))
+                          OutlinedTextField(
+                              value = urlText,
+                              onValueChange = { urlText = it },
+                              placeholder = { Text("Cole o link do Instagram, TikTok, YouTube...", color = Color.Gray) },
+                              modifier = Modifier.fillMaxWidth(),
+                              singleLine = true
+                          )
+                          Spacer(modifier = Modifier.height(16.dp))
+                          Button(
+                              onClick = { if (urlText.isNotBlank()) showDialog = true },
+                              modifier = Modifier.fillMaxWidth(),
+                              colors = ButtonDefaults.buttonColors(containerColor = primaryRed),
+                              shape = RoundedCornerShape(12.dp)
+                          ) {
+                              Text("BAIXAR MÍDIA", color = Color.White, fontWeight = FontWeight.Bold)
+                          }
+                      }
+                  }
+              }
+
+              if (showDialog) {
+                  AlertDialog(
+                      onDismissRequest = { showDialog = false },
+                      containerColor = cardBackground,
+                      title = { Text("Escolha o Formato", color = Color.White, fontWeight = FontWeight.Bold) },
+                      text = {
+                          Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                              Button(onClick = { selectedFormat = "MP4" }, colors = ButtonDefaults.buttonColors(containerColor = if (selectedFormat == "MP4") primaryBlue else Color.DarkGray)) {
+                                  Text("Vídeo (MP4)")
+                              }
+                              Button(onClick = { selectedFormat = "MP3" }, colors = ButtonDefaults.buttonColors(containerColor = if (selectedFormat == "MP3") primaryBlue else Color.DarkGray)) {
+                                  Text("Áudio (MP3)")
+                              }
+                          }
+                      },
+                      confirmButton = {
+                          Button(onClick = {
+                              showDialog = false
+                              onDownloadClick(urlText, "1080p", selectedFormat == "MP3")
+                          }, colors = ButtonDefaults.buttonColors(containerColor = primaryRed)) {
+                              Text("CONTINUAR")
+                          }
+                      },
+                      dismissButton = {
+                          TextButton(onClick = { showDialog = false }) { Text("Cancelar", color = Color.Gray) }
+                      }
+                  )
+              }
+          }
+
+          fun processAndDownloadMedia(context: Context, videoUrl: String, quality: String, isAudio: Boolean) {
+              Toast.makeText(context, "A processar link das redes sociais...", Toast.LENGTH_SHORT).show()
+              kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
+                  try {
+                      val apiUrl = "https://co.wuk.sh/api/json"
+                      val urlObj = URL(apiUrl)
+                      val conn = urlObj.openConnection() as HttpURLConnection
+                      conn.requestMethod = "POST"
+                      conn.setRequestProperty("Content-Type", "application/json")
+                      conn.setRequestProperty("Accept", "application/json")
+                      conn.doOutput = true
+
+                      val jsonInput = JSONObject().apply {
+                          put("url", videoUrl)
+                          if (isAudio) put("isAudioOnly", true)
+                      }
+                      conn.outputStream.use { os -> os.write(jsonInput.toString().toByteArray(Charsets.UTF_8)) }
+
+                      if (conn.responseCode == HttpURLConnection.HTTP_OK) {
+                          val responseText = conn.inputStream.bufferedReader().readText()
+                          val jsonResponse = JSONObject(responseText)
+                          val directDownloadUrl = jsonResponse.optString("url")
+
+                          if (directDownloadUrl.isNotBlank()) {
+                              withContext(Dispatchers.Main) {
+                                  triggerAndroidDownload(context, directDownloadUrl, isAudio)
+                              }
+                          } else {
+                              withContext(Dispatchers.Main) {
+                                  Toast.makeText(context, "Erro: Não foi possível extrair o link.", Toast.LENGTH_LONG).show()
+                              }
+                          }
+                      }
+                  } catch (e: Exception) {
+                      e.printStackTrace()
+                      withContext(Dispatchers.Main) {
+                          Toast.makeText(context, "Erro de conexão.", Toast.LENGTH_LONG).show()
+                      }
+                  }
+              }
+          }
+
+          fun triggerAndroidDownload(context: Context, downloadUrl: String, isAudio: Boolean) {
+              val fileExtension = if (isAudio) ".mp3" else ".mp4"
+              val mimeType = if (isAudio) "audio/mpeg" else "video/mp4"
+              val fileName = "BlueRush_${System.currentTimeMillis()}$fileExtension"
+
+              val request = DownloadManager.Request(Uri.parse(downloadUrl)).apply {
+                  setTitle("Download Blue Rush")
+                  setDescription("A descarregar arquivo...")
+                  setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                  setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName)
+                  setMimeType(mimeType)
+              }
+              val manager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+              manager.enqueue(request)
+              Toast.makeText(context, "Download iniciado com sucesso!", Toast.LENGTH_LONG).show()
+          }
+          EOF
 
       - name: Configurar Gradle (Automático)
         uses: gradle/actions/setup-gradle@v4
@@ -72,8 +299,7 @@ jobs:
 
       - name: Compilar APK (Debug)
         run: |
-          PROJECT_DIR=$(dirname $(find source -name "settings.gradle.kts" -print -quit))
-          cd "$PROJECT_DIR"
+          cd BlueRush
           gradle assembleDebug --stacktrace
 
       - name: Disponibilizar APK para download
