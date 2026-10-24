@@ -23,7 +23,7 @@ jobs:
 
       - name: Configurar Android SDK
         run: |
-          yes | sdkmanager --licenses
+         yes | sdkmanager --licenses
           sdkmanager "platforms;android-35" "build-tools;35.0.0"
 
       - name: Instalar componentes Android
