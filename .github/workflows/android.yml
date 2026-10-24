@@ -31,6 +31,21 @@ jobs:
           mkdir -p source
           unzip -o BlueRushDownloader_project.zip -d source
 
+      - name: Corrigir Compatibilidade Java/Kotlin no Projeto
+        run: |
+          # Encontra a pasta onde está o app/build.gradle.kts
+          BUILD_FILE=$(find source -name "build.gradle.kts" -path "*/app/*" -print -quit)
+          if [ -n "$BUILD_FILE" ]; then
+            echo "A ajustar a compatibilidade JVM para Java 17 no ficheiro: $BUILD_FILE"
+            # Adiciona ou corrige o bloco de compatibilidade JVM para 17
+            echo "" >> "$BUILD_FILE"
+            echo "kotlin {" >> "$BUILD_FILE"
+            echo "    compilerOptions {" >> "$BUILD_FILE"
+            echo "        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17" >> "$BUILD_FILE"
+            echo "    }" >> "$BUILD_FILE"
+            echo "}" >> "$BUILD_FILE"
+          fi
+
       - name: Configurar Gradle (Automático)
         uses: gradle/actions/setup-gradle@v4
         with:
@@ -40,7 +55,13 @@ jobs:
         run: |
           PROJECT_DIR=$(dirname $(find source -name "settings.gradle.kts" -print -quit))
           cd "$PROJECT_DIR"
-          
-          # Executa a compilação com stacktrace para capturar detalhes exatos se falhar
           gradle assembleDebug --stacktrace
+
+      - name: Disponibilizar APK para download
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: BlueRushDownloader-APK
+          path: "**/build/outputs/apk/debug/app-debug.apk"
+          if-no-files-found: error
           
