@@ -31,13 +31,31 @@ jobs:
           mkdir -p source
           unzip -o BlueRushDownloader_project.zip -d source
 
-      - name: Injetar Import do verticalScroll no MainActivity.kt
+      - name: Forçar Java 17 e Injetar Imports Necessários
         run: |
+          # 1. Adiciona o import do verticalScroll no MainActivity.kt
           MAIN_FILE=$(find source -name "MainActivity.kt" -print -quit)
           if [ -n "$MAIN_FILE" ]; then
-            echo "A adicionar o import necessário em: $MAIN_FILE"
-            # Adiciona o import do verticalScroll logo abaixo do pacote
+            echo "A adicionar o import no: $MAIN_FILE"
             sed -i '0,/package /{s/package \(.*\)/package \1\n\nimport androidx.compose.foundation.verticalScroll/}' "$MAIN_FILE"
+          fi
+
+          # 2. Força o Java 17 no build.gradle.kts do app para evitar conflitos de JVM
+          BUILD_FILE=$(find source -name "build.gradle.kts" -path "*/app/*" -print -quit)
+          if [ -n "$BUILD_FILE" ]; then
+            echo "A injetar a configuração Java 17 em: $BUILD_FILE"
+            echo "" >> "$BUILD_FILE"
+            echo "android {" >> "$BUILD_FILE"
+            echo "    compileOptions {" >> "$BUILD_FILE"
+            echo "        sourceCompatibility = JavaVersion.VERSION_17" >> "$BUILD_FILE"
+            echo "        targetCompatibility = JavaVersion.VERSION_17" >> "$BUILD_FILE"
+            echo "    }" >> "$BUILD_FILE"
+            echo "}" >> "$BUILD_FILE"
+            echo "kotlin {" >> "$BUILD_FILE"
+            echo "    compilerOptions {" >> "$BUILD_FILE"
+            echo "        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17" >> "$BUILD_FILE"
+            echo "    }" >> "$BUILD_FILE"
+            echo "}" >> "$BUILD_FILE"
           fi
 
       - name: Configurar Gradle (Automático)
