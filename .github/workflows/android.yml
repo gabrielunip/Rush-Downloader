@@ -21,17 +21,15 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Configurar Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Instalar Build Tools e Platform 35
+      - name: Aceitar Licenças e Instalar SDK Componentes
         run: |
-          sdkmanager --install "platforms;android-35" "build-tools;35.0.0"
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-35" "build-tools;35.0.0"
 
       - name: Extrair projeto ZIP
         run: |
-          mkdir source
-          unzip BlueRushDownloader_project.zip -d source
+          mkdir -p source
+          unzip -o BlueRushDownloader_project.zip -d source
 
       - name: Dar permissão ao Gradle Wrapper
         working-directory: source
