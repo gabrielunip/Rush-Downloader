@@ -31,19 +31,33 @@ jobs:
           mkdir -p source
           unzip -o BlueRushDownloader_project.zip -d source
 
-      - name: Corrigir Compatibilidade Java/Kotlin no Projeto
+      - name: Corrigir Compatibilidade Java no app/build.gradle.kts
         run: |
-          # Encontra a pasta onde está o app/build.gradle.kts
           BUILD_FILE=$(find source -name "build.gradle.kts" -path "*/app/*" -print -quit)
           if [ -n "$BUILD_FILE" ]; then
-            echo "A ajustar a compatibilidade JVM para Java 17 no ficheiro: $BUILD_FILE"
-            # Adiciona ou corrige o bloco de compatibilidade JVM para 17
-            echo "" >> "$BUILD_FILE"
-            echo "kotlin {" >> "$BUILD_FILE"
-            echo "    compilerOptions {" >> "$BUILD_FILE"
-            echo "        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17" >> "$BUILD_FILE"
-            echo "    }" >> "$BUILD_FILE"
-            echo "}" >> "$BUILD_FILE"
+            echo "A atualizar o Java para a versão 17 no ficheiro: $BUILD_FILE"
+            
+            # Cria um ficheiro temporário para reescrever o bloco compileOptions com Java 17
+            python3 -c "
+            path = '$BUILD_FILE'
+            with open(path, 'r') as f:
+                content = f.read()
+            
+            # Substitui ou injeta o sourceCompatibility e targetCompatibility para JavaVersion.VERSION_17
+            if 'compileOptions {' in content:
+                # Se já existir compileOptions, substitui o conteúdo interno
+                old_block = 'compileOptions {'
+                new_block = '''compileOptions {
+                    sourceCompatibility = JavaVersion.VERSION_17
+                    targetCompatibility = JavaVersion.VERSION_17'''
+                content = content.replace(old_block, new_block, 1)
+            else:
+                # Se não existir, adiciona dentro do bloco android
+                content = content.replace('android {', 'android {\n    compileOptions {\n        sourceCompatibility = JavaVersion.VERSION_17\n        targetCompatibility = JavaVersion.VERSION_17\n    }')
+            
+            with open(path, 'w') as f:
+                f.write(content)
+            "
           fi
 
       - name: Configurar Gradle (Automático)
