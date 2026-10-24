@@ -31,33 +31,19 @@ jobs:
           mkdir -p source
           unzip -o BlueRushDownloader_project.zip -d source
 
-      - name: Corrigir Compatibilidade Java no app/build.gradle.kts
+      - name: Forçar Compatibilidade Java 17 no Projeto
         run: |
           BUILD_FILE=$(find source -name "build.gradle.kts" -path "*/app/*" -print -quit)
           if [ -n "$BUILD_FILE" ]; then
-            echo "A atualizar o Java para a versão 17 no ficheiro: $BUILD_FILE"
-            
-            # Cria um ficheiro temporário para reescrever o bloco compileOptions com Java 17
-            python3 -c "
-            path = '$BUILD_FILE'
-            with open(path, 'r') as f:
-                content = f.read()
-            
-            # Substitui ou injeta o sourceCompatibility e targetCompatibility para JavaVersion.VERSION_17
-            if 'compileOptions {' in content:
-                # Se já existir compileOptions, substitui o conteúdo interno
-                old_block = 'compileOptions {'
-                new_block = '''compileOptions {
-                    sourceCompatibility = JavaVersion.VERSION_17
-                    targetCompatibility = JavaVersion.VERSION_17'''
-                content = content.replace(old_block, new_block, 1)
-            else:
-                # Se não existir, adiciona dentro do bloco android
-                content = content.replace('android {', 'android {\n    compileOptions {\n        sourceCompatibility = JavaVersion.VERSION_17\n        targetCompatibility = JavaVersion.VERSION_17\n    }')
-            
-            with open(path, 'w') as f:
-                f.write(content)
-            "
+            echo "A injetar a configuração Java 17 em: $BUILD_FILE"
+            # Adiciona o bloco compileOptions de forma limpa no final do ficheiro se não existir
+            echo "" >> "$BUILD_FILE"
+            echo "android {" >> "$BUILD_FILE"
+            echo "    compileOptions {" >> "$BUILD_FILE"
+            echo "        sourceCompatibility = JavaVersion.VERSION_17" >> "$BUILD_FILE"
+            echo "        targetCompatibility = JavaVersion.VERSION_17" >> "$BUILD_FILE"
+            echo "    }" >> "$BUILD_FILE"
+            echo "}" >> "$BUILD_FILE"
           fi
 
       - name: Configurar Gradle (Automático)
